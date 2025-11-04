@@ -150,9 +150,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
               <a href="#" className="text-gray-400 hover:text-purple-400 transition-colors">
                 <Github className="h-5 w-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-purple-400 transition-colors">
-                <Twitter className="h-5 w-5" />
-              </a>
+              
               <a href="#" className="text-gray-400 hover:text-purple-400 transition-colors">
                 <Linkedin className="h-5 w-5" />
               </a>
