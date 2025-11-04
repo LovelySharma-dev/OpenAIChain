@@ -3,8 +3,11 @@ import mongoose from "mongoose";
 const rewardSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    ref: 'User'
+  },
+  walletAddress: {
+    type: String,
+    index: true
   },
   modelId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -27,6 +30,11 @@ const rewardSchema = new mongoose.Schema({
   newAccuracy: Number,
   description: String,
   transactionHash: String,
+  claimed: {
+    type: Boolean,
+    default: false
+  },
+  claimedAt: Date,
   createdAt: {
     type: Date,
     default: Date.now

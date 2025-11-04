@@ -8,9 +8,13 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  password: {
+    type: String,
+    required: false // Not required for existing users
+  },
   name: {
     type: String,
-    required: true
+    required: false // Optional, can be set during signup
   },
   auth0Id: {
     type: String,
@@ -24,7 +28,7 @@ const userSchema = new mongoose.Schema({
   },
   tokenBalance: {
     type: Number,
-    default: 1250
+    default: 1000 // Free 1000 OAC on signup
   },
   modelsContributed: {
     type: Number,

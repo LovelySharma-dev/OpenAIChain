@@ -1,20 +1,33 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
 import { Badge } from "./ui/badge";
-import { Play, Square, TrendingUp, Users, Zap, Award } from "lucide-react";
+import { Play, Square, TrendingUp, Users, Zap, Award, Loader2 } from "lucide-react";
+import { getWalletData, WalletData } from "../api";
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
+  walletAddress?: string | null;
 }
 
-export function DashboardPage({ onNavigate }: DashboardPageProps) {
+export function DashboardPage({ onNavigate, walletAddress }: DashboardPageProps) {
   const [isTraining, setIsTraining] = useState(false);
   const [trainingRound, setTrainingRound] = useState(4);
   const [accuracy, setAccuracy] = useState(92.3);
   const [loss, setLoss] = useState(0.087);
   const [progress, setProgress] = useState(65);
+  const [walletData, setWalletData] = useState<WalletData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sessionRewards, setSessionRewards] = useState(0);
+
+  useEffect(() => {
+    if (walletAddress) {
+      loadWalletData();
+    } else {
+      setLoading(false);
+    }
+  }, [walletAddress]);
 
   useEffect(() => {
     if (isTraining) {
@@ -24,6 +37,8 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             setTrainingRound(r => r + 1);
             setAccuracy(a => Math.min(99.9, a + Math.random() * 2));
             setLoss(l => Math.max(0.001, l - Math.random() * 0.01));
+            // Update session rewards
+            setSessionRewards(prev => prev + 50);
             return 0;
           }
           return prev + 1;
@@ -32,6 +47,30 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       return () => clearInterval(interval);
     }
   }, [isTraining]);
+
+  const loadWalletData = async () => {
+    if (!walletAddress) return;
+    
+    setLoading(true);
+    try {
+      const data = await getWalletData(walletAddress);
+      setWalletData(data.wallet);
+      
+      // Calculate session rewards from recent transactions
+      const recentRewards = data.transactions
+        .filter(tx => tx.type === 'earn' && tx.status === 'completed')
+        .slice(0, 10)
+        .reduce((sum, tx) => {
+          const amount = parseInt(tx.amount.replace(/[^0-9]/g, '')) || 0;
+          return sum + amount;
+        }, 0);
+      setSessionRewards(recentRewards);
+    } catch (error) {
+      console.error("Failed to load wallet data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen pt-20 pb-12">
@@ -202,22 +241,34 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
         {/* Token Reward Summary */}
         <Card className="bg-gradient-to-br from-yellow-900/20 to-orange-900/20 border-yellow-500/30 backdrop-blur-sm p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <div className="p-4 rounded-xl bg-yellow-500/20 border border-yellow-400/30">
                 <Award className="h-8 w-8 text-yellow-400" />
               </div>
               <div>
                 <p className="text-sm text-gray-400 mb-1">Session Rewards</p>
-                <p className="text-3xl text-yellow-100">+{(trainingRound - 4) * 50 + 150} OAC</p>
+                {loading ? (
+                  <Loader2 className="h-6 w-6 text-yellow-400 animate-spin" />
+                ) : (
+                  <p className="text-3xl text-yellow-100">
+                    +{sessionRewards || (trainingRound - 4) * 50 + 150} OAC
+                  </p>
+                )}
               </div>
+              {walletData && (
+                <div className="ml-4 pl-4 border-l border-yellow-500/30">
+                  <p className="text-xs text-gray-400 mb-1">Total Balance</p>
+                  <p className="text-xl text-yellow-200">{walletData.balance.toLocaleString()} OAC</p>
+                </div>
+              )}
             </div>
             <Button
               onClick={() => onNavigate("wallet")}
               variant="outline"
               className="border-yellow-400/50 hover:bg-yellow-500/10 text-yellow-200"
             >
-              View Wallet
+              {walletAddress ? "View Wallet" : "Connect Wallet"}
             </Button>
           </div>
         </Card>

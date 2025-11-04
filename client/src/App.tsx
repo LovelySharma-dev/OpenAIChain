@@ -1,13 +1,15 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Navbar } from "./components/Navbar";
 import { LandingPage } from "./components/LandingPage";
 import { MarketplacePage } from "./components/MarketplacePage";
 import { DashboardPage } from "./components/DashboardPage";
 import { WalletPage } from "./components/WalletPage";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { useWallet } from "./hooks/useWallet";
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<string>("landing");
-  const [tokenBalance] = useState(1250);
+  const { walletAddress } = useWallet();
 
   const handleNavigate = (page: string) => {
     setCurrentPage(page);
@@ -38,7 +40,6 @@ export default function App() {
           <Navbar
             currentPage={currentPage}
             onNavigate={handleNavigate}
-            tokenBalance={tokenBalance}
           />
         )}
 
@@ -47,22 +48,27 @@ export default function App() {
             <Navbar
               currentPage={currentPage}
               onNavigate={handleNavigate}
-              tokenBalance={tokenBalance}
             />
             <LandingPage onNavigate={handleNavigate} />
           </>
         )}
 
         {currentPage === "marketplace" && (
-          <MarketplacePage onNavigate={handleNavigate} />
+          <ProtectedRoute>
+            <MarketplacePage onNavigate={handleNavigate} walletAddress={walletAddress} />
+          </ProtectedRoute>
         )}
 
         {currentPage === "dashboard" && (
-          <DashboardPage onNavigate={handleNavigate} />
+          <ProtectedRoute>
+            <DashboardPage onNavigate={handleNavigate} walletAddress={walletAddress} />
+          </ProtectedRoute>
         )}
 
         {currentPage === "wallet" && (
-          <WalletPage onNavigate={handleNavigate} />
+          <ProtectedRoute>
+            <WalletPage onNavigate={handleNavigate} walletAddress={walletAddress} />
+          </ProtectedRoute>
         )}
       </div>
     </div>

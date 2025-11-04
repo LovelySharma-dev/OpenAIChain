@@ -1,25 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ModelCard } from "./ModelCard";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Search, Upload, Activity } from "lucide-react";
+import { Search, Upload, Activity, Loader2 } from "lucide-react";
+import { fetchModels, Model } from "../api";
 
 interface MarketplacePageProps {
   onNavigate: (page: string) => void;
+  walletAddress?: string | null;
 }
-
-const models = [
-  { name: "ImageNet Classifier", category: "Vision", accuracy: 94.2, datasetSize: "1.2M images", reward: 150, description: "State-of-the-art image classification" },
-  { name: "Sentiment Analyzer", category: "NLP", accuracy: 89.7, datasetSize: "500K reviews", reward: 120, description: "Multi-language sentiment analysis" },
-  { name: "Object Detection YOLO", category: "Vision", accuracy: 91.5, datasetSize: "800K images", reward: 180, description: "Real-time object detection" },
-  { name: "Speech Recognition", category: "Audio", accuracy: 88.3, datasetSize: "300K hours", reward: 200, description: "Multi-accent speech-to-text" },
-  { name: "GPT-4 Fine-tune", category: "NLP", accuracy: 96.1, datasetSize: "2.5M texts", reward: 250, description: "Advanced language model" },
-  { name: "Face Recognition", category: "Vision", accuracy: 99.2, datasetSize: "600K faces", reward: 160, description: "Privacy-preserving face ID" },
-  { name: "Translation Model", category: "NLP", accuracy: 92.8, datasetSize: "1M pairs", reward: 140, description: "100+ language pairs" },
-  { name: "Music Generator", category: "Audio", accuracy: 85.6, datasetSize: "200K tracks", reward: 190, description: "AI-powered music creation" },
-];
 
 const recentTransactions = [
   { user: "0x7a9f...2b4c", action: "Trained ImageNet Classifier", reward: "+150 OAC", time: "2 min ago" },
@@ -29,14 +20,35 @@ const recentTransactions = [
   { user: "0x2e7c...8b5a", action: "Trained Speech Recognition", reward: "+200 OAC", time: "15 min ago" },
 ];
 
-export function MarketplacePage({ onNavigate }: MarketplacePageProps) {
+export function MarketplacePage({ onNavigate, walletAddress }: MarketplacePageProps) {
+  const [models, setModels] = useState<Model[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const filteredModels = models.filter(model => {
-    const matchesCategory = selectedCategory === "all" || model.category.toLowerCase() === selectedCategory.toLowerCase();
-    const matchesSearch = model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         model.description.toLowerCase().includes(searchQuery.toLowerCase());
+  // ✅ Fetch backend models once when the page loads
+  useEffect(() => {
+    fetchModels()
+      .then((data) => {
+        setModels(data.models || []);
+      })
+      .catch((err) => {
+        console.error("❌ Failed to load models:", err);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filteredModels = models.filter((model) => {
+    const name = model.name?.toLowerCase() || "";
+    const desc = model.description?.toLowerCase() || "";
+    const type = model.type?.toLowerCase() || "";
+
+    const matchesCategory =
+      selectedCategory === "all" || type.includes(selectedCategory);
+    const matchesSearch =
+      name.includes(searchQuery.toLowerCase()) ||
+      desc.includes(searchQuery.toLowerCase());
+
     return matchesCategory && matchesSearch;
   });
 
@@ -46,7 +58,6 @@ export function MarketplacePage({ onNavigate }: MarketplacePageProps) {
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Main Content */}
           <div className="flex-1">
-            {/* Header */}
             <div className="mb-8">
               <h1 className="mb-2 bg-gradient-to-r from-purple-200 to-blue-200 bg-clip-text text-transparent">
                 AI Model Marketplace
@@ -65,9 +76,8 @@ export function MarketplacePage({ onNavigate }: MarketplacePageProps) {
                   className="pl-10 bg-purple-900/10 border-purple-500/30 focus:border-purple-400/50 backdrop-blur-sm"
                 />
               </div>
-              
               <div className="flex gap-2">
-                {["all", "vision", "nlp", "audio"].map(category => (
+                {["all", "vision", "nlp", "audio"].map((category) => (
                   <Button
                     key={category}
                     variant={selectedCategory === category ? "default" : "outline"}
@@ -86,9 +96,29 @@ export function MarketplacePage({ onNavigate }: MarketplacePageProps) {
 
             {/* Models Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredModels.map((model, index) => (
-                <ModelCard key={index} {...model} />
-              ))}
+              {loading ? (
+                <div className="col-span-full flex flex-col items-center justify-center mt-12 py-12">
+                  <Loader2 className="h-8 w-8 text-purple-400 animate-spin mb-4" />
+                  <p className="text-gray-400 text-lg">Loading models...</p>
+                </div>
+              ) : filteredModels.length > 0 ? (
+                filteredModels.map((model, index) => (
+                  <ModelCard
+                    key={model.id || index}
+                    name={model.name}
+                    category={model.type || "AI"}
+                    accuracy={model.accuracy || "N/A"}
+                    description={model.description}
+                    reward={Math.floor(Math.random() * 250) + 100}
+                    datasetSize={`${Math.floor(Math.random() * 2)}M records`}
+                    walletAddress={walletAddress}
+                  />
+                ))
+              ) : (
+                <p className="text-gray-400 col-span-full text-center mt-6">
+                  No models found.
+                </p>
+              )}
             </div>
           </div>
 
@@ -127,9 +157,7 @@ export function MarketplacePage({ onNavigate }: MarketplacePageProps) {
         </div>
 
         {/* Floating Upload Button */}
-        <Button
-          className="fixed bottom-8 right-8 h-14 w-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 border border-purple-400/30 shadow-2xl shadow-purple-500/40 hover:scale-110 transition-transform"
-        >
+        <Button className="fixed bottom-8 right-8 h-14 w-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 border border-purple-400/30 shadow-2xl shadow-purple-500/40 hover:scale-110 transition-transform">
           <Upload className="h-6 w-6" />
         </Button>
       </div>

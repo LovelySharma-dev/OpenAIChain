@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import connectDB from "./utils/connectDB.js";
 
 // Import routes
+import authRoutes from "./routes/authRoutes.js";
 import modelRoutes from "./routes/modelRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import rewardRoutes from "./routes/rewardRoutes.js";
@@ -43,9 +44,11 @@ app.get("/", (req, res) => {
 });
 
 // API Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/models", modelRoutes);
 app.use("/api", aiRoutes);
 app.use("/api/reward", rewardRoutes);
+app.use("/api/wallet", rewardRoutes); // Wallet routes also in rewardRoutes
 app.use("/api/governance", governanceRoutes);
 
 // Health check
