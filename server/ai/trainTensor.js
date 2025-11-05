@@ -62,14 +62,9 @@ export async function trainModel(modelConfig = {}) {
       timestamp: new Date().toISOString()
     };
   } catch (error) {
-    console.error("❌ Training error:", error.message);
-    return {
-      accuracy: 0,
-      loss: 1.0,
-      epochs: 0,
-      status: 'failed',
-      error: error.message
-    };
+    console.error("❌ Training error:", error);
+    // Re-throw so callers can handle/log the full error and return proper HTTP status
+    throw error;
   }
 }
 

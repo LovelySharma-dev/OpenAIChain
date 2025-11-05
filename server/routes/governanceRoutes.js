@@ -1,5 +1,5 @@
 import express from "express";
-import { optionalAuth } from "../utils/authMiddleware.js";
+import verifyToken from "../utils/verifyToken.js";
 
 const router = express.Router();
 
@@ -120,7 +120,7 @@ router.get("/:id", (req, res) => {
 });
 
 // POST /api/governance/vote - Vote on a proposal
-router.post("/vote", optionalAuth, async (req, res) => {
+router.post("/vote", verifyToken, async (req, res) => {
   try {
     const { proposalId, vote } = req.body;
 
@@ -178,7 +178,7 @@ router.post("/vote", optionalAuth, async (req, res) => {
 });
 
 // POST /api/governance/propose - Create new proposal
-router.post("/propose", optionalAuth, async (req, res) => {
+router.post("/propose", verifyToken, async (req, res) => {
   try {
     const { title, description, category } = req.body;
 

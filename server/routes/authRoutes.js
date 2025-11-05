@@ -1,149 +1,52 @@
 import express from "express";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
 import User from "../models/User.js";
+import { OAuth2Client } from "google-auth-library";
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret_jwt_key_change_in_production";
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
-// Signup
-router.post("/signup", async (req, res) => {
-  try {
-    const { email, password, name } = req.body;
+// NOTE: This file provides a minimal Google OAuth token exchange.
+// - POST /google { idToken }  -> verifies Google ID token and returns backend JWT + user
+// - GET  /me                  -> protected; returns current user based on Authorization: Bearer <token>
 
-    // Validation
-    if (!email || !password) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Email and password are required" 
-      });
-    }
+// Helper: build user response shape (no password)
+function buildUserResponse(user) {
+  return {
+    id: user._id,
+    email: user.email,
+    name: user.name,
+    tokenBalance: user.tokenBalance,
+    totalRewards: user.totalRewards,
+    modelsContributed: user.modelsContributed,
+    role: user.role,
+    walletAddress: user.walletAddress,
+  };
+}
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ 
-        success: false,
-        message: "User already exists" 
-      });
-    }
+// Guest response helper (no DB access)
+function buildGuestResponse() {
+  return {
+    id: "guest",
+    email: null,
+    name: "Guest",
+    tokenBalance: 0,
+    totalRewards: 0,
+    modelsContributed: 0,
+    role: "guest",
+    walletAddress: null,
+  };
+}
 
-    // Hash password
-    const hashed = await bcrypt.hash(password, 10);
+// --- Removed username/password signup/login to keep auth minimal (Google OAuth only) ---
 
-    // Create user with free 1000 OAC tokens
-    const user = await User.create({ 
-      email, 
-      password: hashed, 
-      name: name || email.split('@')[0],
-      tokenBalance: 1000 
-    });
+// (Register/signup removed - auth disabled mode)
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user._id, email: user.email }, 
-      JWT_SECRET, 
-      { expiresIn: "7d" }
-    );
+// --- Password login removed to keep flow simple. Use Google OAuth on the client. ---
 
-    // Return user data (without password)
-    const userData = {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      tokenBalance: user.tokenBalance,
-      totalRewards: user.totalRewards,
-      modelsContributed: user.modelsContributed,
-      role: user.role
-    };
-
-    res.json({ 
-      success: true, 
-      token, 
-      user: userData 
-    });
-  } catch (err) {
-    console.error("Signup error:", err);
-    res.status(500).json({ 
-      success: false,
-      message: err.message 
-    });
-  }
-});
-
-// Login
-router.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Validation
-    if (!email || !password) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Email and password are required" 
-      });
-    }
-
-    // Find user
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        message: "User not found" 
-      });
-    }
-
-    // Check if user has password (for existing users without password)
-    if (!user.password) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Please set a password first. Use signup to create an account." 
-      });
-    }
-
-    // Verify password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Invalid credentials" 
-      });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user._id, email: user.email }, 
-      JWT_SECRET, 
-      { expiresIn: "7d" }
-    );
-
-    // Return user data (without password)
-    const userData = {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      tokenBalance: user.tokenBalance,
-      totalRewards: user.totalRewards,
-      modelsContributed: user.modelsContributed,
-      role: user.role,
-      walletAddress: user.walletAddress
-    };
-
-    res.json({ 
-      success: true, 
-      token, 
-      user: userData 
-    });
-  } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ 
-      success: false,
-      message: err.message 
-    });
-  }
-});
-
-// Get current user (protected route)
+// Get current user profile (protected route)
 router.get("/me", async (req, res) => {
   try {
     // Get token from header
@@ -154,9 +57,14 @@ router.get("/me", async (req, res) => {
         message: "Unauthorized" 
       });
     }
-
     // Verify token
-    const decoded = jwt.verify(token, JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (verifyErr) {
+      console.log("[auth] token verify failed:", verifyErr.message);
+      return res.status(401).json({ success: false, message: "Invalid or expired token" });
+    }
     
     // Find user
     const user = await User.findById(decoded.id);
@@ -184,17 +92,55 @@ router.get("/me", async (req, res) => {
       user: userData 
     });
   } catch (err) {
-    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
-        success: false,
-        message: "Invalid or expired token" 
-      });
+    console.error("Get user error:", err?.message || err);
+    res.status(500).json({ success: false, message: err.message || "Server error" });
+  }
+});
+
+// /profile -> same as /me
+router.get("/profile", async (req, res) => {
+  return router.handle(req, res);
+});
+
+// Supabase integration removed to keep auth minimal.
+
+// Google ID token exchange -> issue backend JWT
+router.post("/google", async (req, res) => {
+  try {
+    // Development fallback: accept email/name in body if GOOGLE_CLIENT_ID not provided
+    const { idToken, email: devEmail, name: devName } = req.body || {};
+
+    let email;
+    let profileName;
+
+    if (googleClient && idToken) {
+      console.log("[auth] verifying Google idToken...");
+      const ticket = await googleClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_ID });
+      const payload = ticket.getPayload();
+      email = payload?.email;
+      profileName = payload?.name;
+    } else if (process.env.NODE_ENV !== "production" && devEmail) {
+      // Very small dev helper: allow posting { email, name } when not in production
+      console.log("[auth] DEV fallback login used for:", devEmail);
+      email = devEmail;
+      profileName = devName;
+    } else {
+      return res.status(400).json({ success: false, message: "Google auth not configured or missing idToken" });
     }
-    console.error("Get user error:", err);
-    res.status(500).json({ 
-      success: false,
-      message: err.message 
-    });
+
+    if (!email) return res.status(401).json({ success: false, message: "Invalid Google token or missing email" });
+
+    let user = await User.findOne({ email });
+    if (!user) {
+      console.log("[auth] creating new user for:", email);
+      user = await User.create({ email, name: profileName || email.split("@")[0], tokenBalance: 1000 });
+    }
+
+    const backendToken = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+    res.json({ success: true, token: backendToken, user: buildUserResponse(user) });
+  } catch (err) {
+    console.error("Google exchange error:", err?.message || err);
+    res.status(401).json({ success: false, message: err?.message || "Invalid Google token" });
   }
 });
 

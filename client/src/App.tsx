@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Navbar } from "./components/Navbar";
 import { LandingPage } from "./components/LandingPage";
 import { MarketplacePage } from "./components/MarketplacePage";
@@ -15,6 +15,17 @@ export default function App() {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    const onAuthSuccess = () => {
+      setCurrentPage("dashboard");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener("auth:success", onAuthSuccess as EventListener);
+    return () => {
+      window.removeEventListener("auth:success", onAuthSuccess as EventListener);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-purple-950/20 to-black">

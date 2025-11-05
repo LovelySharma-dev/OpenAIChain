@@ -147,17 +147,19 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
             </div>
 
             <div className="flex gap-6">
-              <a href="#" className="text-gray-400 hover:text-purple-400 transition-colors">
-                <Github className="h-5 w-5" />
-              </a>
-              
-              <a href="#" className="text-gray-400 hover:text-purple-400 transition-colors">
-                <Linkedin className="h-5 w-5" />
-              </a>
-            </div>
+  <a
+    href="https://github.com/LovelySharma-dev/OpenAIChain"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="text-gray-400 hover:text-purple-400 transition-colors"
+  >
+    <Github className="h-5 w-5" />
+  </a>
+</div>
+            
 
             <p className="text-sm text-gray-400">
-              Privacy-first AI. No PII collection. Open source.
+              Privacy-first AI. No data collection. Open source.
             </p>
           </div>
         </div>

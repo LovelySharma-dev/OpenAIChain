@@ -3,25 +3,30 @@ import { trainModel, federatedTrain } from "../ai/trainTensor.js";
 import Model from "../models/Model.js";
 import User from "../models/User.js";
 import Reward from "../models/Reward.js";
-import { authMiddleware } from "../utils/authMiddleware.js";
+import { authMiddleware, optionalAuth } from "../utils/authMiddleware.js";
 
 const router = express.Router();
 
-// POST /api/train - Train a model using TensorFlow.js (requires auth)
-router.post("/train", authMiddleware, async (req, res) => {
+// POST /api/train - Train a model using TensorFlow.js
+// Changed to optionalAuth so guest users can train without logging in
+router.post("/train", optionalAuth, async (req, res) => {
   try {
     const { modelName, epochs = 10, federated = true, nodes = 3 } = req.body;
 
     console.log(`🧠 Training request for model: ${modelName || 'default'}`);
 
     let trainingResult;
-
-    if (federated) {
-      // Federated learning across multiple nodes
-      trainingResult = await federatedTrain(nodes);
-    } else {
-      // Standard centralized training
-      trainingResult = await trainModel({ epochs });
+    try {
+      if (federated) {
+        // Federated learning across multiple nodes
+        trainingResult = await federatedTrain(nodes);
+      } else {
+        // Standard centralized training
+        trainingResult = await trainModel({ epochs });
+      }
+    } catch (trainError) {
+      console.error("❌ Training execution failed:", trainError);
+      return res.status(500).json({ success: false, message: "Training failed", error: process.env.NODE_ENV === 'development' ? String(trainError.stack || trainError) : trainError.message });
     }
 
     // Update model in database if it exists
@@ -40,18 +45,18 @@ router.post("/train", authMiddleware, async (req, res) => {
       }
     }
 
-    // Find user by JWT token (req.user.id from authMiddleware)
-    const user = await User.findById(req.user.userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
+    // If a user is authenticated (optionalAuth may attach req.user), update user reward.
+    let user = null;
+    if (req.user && req.user.userId) {
+      user = await User.findById(req.user.userId);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
     }
 
-    // Link wallet if provided
+    // Link wallet if provided (only if user exists)
     const walletAddress = req.body.walletAddress;
-    if (walletAddress && !user.walletAddress) {
+    if (walletAddress && user && !user.walletAddress) {
       user.walletAddress = walletAddress.toLowerCase();
       await user.save();
     }
@@ -64,26 +69,32 @@ router.post("/train", authMiddleware, async (req, res) => {
       rewardAmount = Math.round(50 + (accuracy - 85) * 2);
       rewardAmount = Math.max(50, Math.min(500, rewardAmount)); // Between 50-500 OAC
       
-      // Update user balance directly in MongoDB
-      user.tokenBalance = (user.tokenBalance || 0) + rewardAmount;
-      user.totalRewards = (user.totalRewards || 0) + rewardAmount;
-      user.modelsContributed = (user.modelsContributed || 0) + 1;
-      await user.save();
+      // Update user balance if user exists (guest users won't have a DB user)
+      if (user) {
+        user.tokenBalance = (user.tokenBalance || 0) + rewardAmount;
+        user.totalRewards = (user.totalRewards || 0) + rewardAmount;
+        user.modelsContributed = (user.modelsContributed || 0) + 1;
+        await user.save();
+      }
       
-      // Create reward entry for history
+      // Create reward entry for history (if user exists, link it; otherwise create generic record)
       try {
         await Reward.create({
-          userId: user._id,
-          walletAddress: walletAddress?.toLowerCase() || user.walletAddress,
+          userId: user ? user._id : null,
+          walletAddress: walletAddress?.toLowerCase() || (user ? user.walletAddress : null),
           amount: rewardAmount,
           type: 'training',
           description: `Model Training - ${modelName || 'default'} (Accuracy: ${accuracy.toFixed(2)}%)`,
           transactionHash: `0x${Math.random().toString(16).substr(2, 64)}`,
-          claimed: true, // Already added to balance
+          claimed: true,
           claimedAt: new Date()
         });
-        
-        console.log(`💰 Training reward: +${rewardAmount} OAC added to user ${user.email} balance (Total: ${user.tokenBalance} OAC)`);
+
+        if (user) {
+          console.log(`💰 Training reward: +${rewardAmount} OAC added to user ${user.email} balance (Total: ${user.tokenBalance} OAC)`);
+        } else {
+          console.log(`💰 Training reward: +${rewardAmount} OAC generated for guest (wallet: ${walletAddress || 'none'})`);
+        }
       } catch (error) {
         console.log("⚠️  Reward history entry skipped:", error.message);
       }

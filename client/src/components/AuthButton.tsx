@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React from "react";
 import { Button } from "./ui/button";
 import { LogIn, LogOut, User, Coins } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { AuthModal } from "./AuthModal";
 
-export function AuthButton() {
+interface AuthButtonProps {
+  onNavigate?: (page: string) => void;
+}
+
+export function AuthButton({ onNavigate }: AuthButtonProps) {
   const { isAuthenticated, user, logout } = useAuth();
-  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   if (isAuthenticated && user) {
     return (
@@ -34,16 +36,13 @@ export function AuthButton() {
   }
 
   return (
-    <>
-      <Button
-        onClick={() => setAuthModalOpen(true)}
-        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 border border-purple-400/30 shadow-lg shadow-purple-500/20"
-      >
-        <LogIn className="h-4 w-4 mr-2" />
-        Log In
-      </Button>
-      <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} defaultMode="login" />
-    </>
+    <Button
+      onClick={() => logout()}
+      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 border border-purple-400/30 shadow-lg shadow-purple-500/20"
+    >
+      <LogIn className="h-4 w-4 mr-2" />
+      Continue as Guest
+    </Button>
   );
 }
 

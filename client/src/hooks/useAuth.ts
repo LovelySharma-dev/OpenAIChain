@@ -1,147 +1,99 @@
-import { useState, useEffect, useCallback } from "react";
-import { loginUser, signupUser, getCurrentUser, User, AuthResponse } from "../api";
+import React, { createContext, useContext, useState } from "react";
+
+// Minimal no-auth provider: always expose a guest user so UI works without login.
+type AuthUser = {
+  id: string;
+  email: string | null;
+  name: string;
+  tokenBalance: number;
+  totalRewards?: number;
+  modelsContributed?: number;
+  role?: string;
+  walletAddress?: string | null;
+};
 
 interface AuthState {
-  user: User | null;
+  user: AuthUser | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
 }
 
-export function useAuth() {
+type AuthContextValue = AuthState & {
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (email: string, password: string, name?: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => void;
+  refreshUser: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const GUEST_USER: AuthUser = {
+  id: "guest",
+  email: null,
+  name: "Guest",
+  tokenBalance: 0,
+  totalRewards: 0,
+  modelsContributed: 0,
+  role: "guest",
+  walletAddress: null,
+};
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>({
-    user: null,
+    user: GUEST_USER,
     token: null,
-    isAuthenticated: false,
-    isLoading: true,
+    isAuthenticated: true,
+    isLoading: false,
     error: null,
   });
 
-  // Load auth state from localStorage on mount
-  useEffect(() => {
-    const loadAuth = async () => {
-      try {
-        const token = localStorage.getItem("authToken");
-        if (token) {
-          // Verify token is still valid by fetching current user
-          const response = await getCurrentUser(token);
-          if (response.success) {
-            setAuthState({
-              user: response.user,
-              token,
-              isAuthenticated: true,
-              isLoading: false,
-              error: null,
-            });
-          } else {
-            // Token invalid, clear it
-            localStorage.removeItem("authToken");
-            setAuthState((prev) => ({ ...prev, isLoading: false }));
-          }
-        } else {
-          setAuthState((prev) => ({ ...prev, isLoading: false }));
-        }
-      } catch (error) {
-        // Token invalid or expired
-        localStorage.removeItem("authToken");
-        setAuthState((prev) => ({ ...prev, isLoading: false }));
-      }
-    };
+  const login = async (email: string, password: string) => {
+    // Auth disabled: act as guest
+    setAuthState((prev) => ({ ...prev, isAuthenticated: true, isLoading: false, error: null }));
+    return { success: true };
+  };
 
-    loadAuth();
-  }, []);
+  const signup = async (email: string, password: string, name?: string) => {
+    // Auth disabled: act as guest
+    setAuthState((prev) => ({ ...prev, isAuthenticated: true, isLoading: false, error: null }));
+    return { success: true };
+  };
 
-  const login = useCallback(async (email: string, password: string) => {
-    setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
-    try {
-      const response: AuthResponse = await loginUser(email, password);
-      if (response.success) {
-        localStorage.setItem("authToken", response.token);
-        setAuthState({
-          user: response.user,
-          token: response.token,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
-        return { success: true };
-      } else {
-        throw new Error(response.message || "Login failed");
-      }
-    } catch (error: any) {
-      const errorMessage = error.message || "Login failed. Please try again.";
-      setAuthState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-      }));
-      return { success: false, error: errorMessage };
-    }
-  }, []);
+  const loginWithGoogle = async () => {
+    // No-op: keep guest
+    return;
+  };
 
-  const signup = useCallback(async (email: string, password: string, name?: string) => {
-    setAuthState((prev) => ({ ...prev, isLoading: true, error: null }));
-    try {
-      const response: AuthResponse = await signupUser(email, password, name);
-      if (response.success) {
-        localStorage.setItem("authToken", response.token);
-        setAuthState({
-          user: response.user,
-          token: response.token,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
-        return { success: true };
-      } else {
-        throw new Error(response.message || "Signup failed");
-      }
-    } catch (error: any) {
-      const errorMessage = error.message || "Signup failed. Please try again.";
-      setAuthState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-      }));
-      return { success: false, error: errorMessage };
-    }
-  }, []);
+  const logout = () => {
+    // Keep user as guest
+    setAuthState({ user: GUEST_USER, token: null, isAuthenticated: true, isLoading: false, error: null });
+  };
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("authToken");
-    setAuthState({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-    });
-  }, []);
+  const refreshUser = async () => {
+    // No-op
+    return;
+  };
 
-  const refreshUser = useCallback(async () => {
-    const token = authState.token || localStorage.getItem("authToken");
-    if (!token) return;
-
-    try {
-      const response = await getCurrentUser(token);
-      if (response.success) {
-        setAuthState((prev) => ({
-          ...prev,
-          user: response.user,
-        }));
-      }
-    } catch (error) {
-      console.error("Failed to refresh user:", error);
-    }
-  }, [authState.token]);
-
-  return {
+  const value: AuthContextValue = {
     ...authState,
     login,
     signup,
+    loginWithGoogle,
     logout,
     refreshUser,
   };
+
+  return React.createElement(AuthContext.Provider, { value }, children);
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return ctx;
 }
 

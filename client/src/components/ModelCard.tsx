@@ -36,11 +36,7 @@ export function ModelCard({ name, category, accuracy, datasetSize, reward, descr
   };
 
   const handleTrainModel = async () => {
-    if (!isAuthenticated || !token) {
-      alert("Please log in to train models.");
-      return;
-    }
-    
+    // Auth removed: allow training for guest users (no token required)
     setTraining(true);
     setResult(null);
     try {
@@ -54,8 +50,8 @@ export function ModelCard({ name, category, accuracy, datasetSize, reward, descr
       // Show reward notification and refresh user balance
       if (res.rewardAmount) {
         alert(`🎉 Training complete! You earned ${res.rewardAmount} OAC tokens!`);
-        // Refresh user data to show updated balance
-        await refreshUser();
+        // Refresh user data to show updated balance (if available)
+        try { await refreshUser?.(); } catch {};
       }
     } catch (err) {
       console.error("❌ Training failed:", err);

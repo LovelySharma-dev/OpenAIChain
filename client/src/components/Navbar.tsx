@@ -1,5 +1,5 @@
 import React from "react";
-import { Wallet, Zap, Loader2 } from "lucide-react";
+import { Wallet, Zap, Loader2, User } from "lucide-react";
 import { Button } from "./ui/button";
 import { useWallet } from "../hooks/useWallet";
 import { AuthButton } from "./AuthButton";
@@ -68,7 +68,7 @@ export function Navbar({
               </div>
             )}
             
-            {isConnected && walletAddress ? (
+            {isAuthenticated && isConnected && walletAddress ? (
               <>
                 <Button
                   onClick={() => onNavigate?.("wallet")}
@@ -105,7 +105,7 @@ export function Navbar({
               </Button>
             ) : null}
             
-            <AuthButton />
+            <AuthButton onNavigate={onNavigate} />
           </div>
         </div>
       </div>

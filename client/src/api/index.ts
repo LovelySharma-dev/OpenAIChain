@@ -83,9 +83,10 @@ export async function apiRequest<T>(
       "Content-Type": "application/json",
     };
     
-    // Add JWT token if available
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+    // Add JWT token if available; fallback to localStorage
+    const effectiveToken = token ?? (typeof localStorage !== 'undefined' ? localStorage.getItem("authToken") : null);
+    if (effectiveToken) {
+      headers["Authorization"] = `Bearer ${effectiveToken}`;
     }
     
     const res = await fetch(url, {
